@@ -1,0 +1,13 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "epf-spain"
+version = "0.1.0"
+description = "Daily day-ahead electricity price forecasts for Spain, D+2 to D+7, with uncertainty."
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+authors = [{ name = "Iván Calvo Rodríguez" }]
+dependencies = []

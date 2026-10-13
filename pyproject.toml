@@ -11,3 +11,12 @@ license = "MIT"
 requires-python = ">=3.11"
 authors = [{ name = "Iván Calvo Rodríguez" }]
 dependencies = []
+
+[project.optional-dependencies]
+dev = ["ruff==0.17.0", "pre-commit==4.7.0"]
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "ANN"]

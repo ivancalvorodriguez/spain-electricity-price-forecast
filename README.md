@@ -5,6 +5,25 @@
 
 En construcción.
 
+## Arranque local
+
+Hace falta Docker con Compose (Docker Desktop en Windows y macOS).
+
+1. Copia `.env.example` como `.env` y pon una contraseña en `POSTGRES_PASSWORD`.
+   Vale cualquiera: es solo para la base local. Sin contraseña, Postgres no arranca.
+2. Levanta todo: `docker compose up -d --build --wait`
+3. Comprueba que responde: <http://127.0.0.1:8000/health> devuelve `{"status": "ok"}`.
+
+Qué arranca:
+
+- `db`: Postgres 18 con los datos en el volumen `pgdata`.
+  Puerto 5432, solo en la máquina local.
+- `web`: el servicio (FastAPI), en el puerto 8000. No arranca hasta que `db` está lista.
+
+Para pararlo, `docker compose down`. Con `-v` se borran también los datos.
+
+Sin Docker, solo el servicio web: `pip install -e .` y `epf-web`.
+
 ## Test de fuga: ¿revisa ESIOS las previsiones D+1?
 
 **Pregunta.** Cuando se consulta la API días después, ¿devuelve la previsión

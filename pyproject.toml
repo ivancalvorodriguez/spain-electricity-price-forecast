@@ -10,7 +10,10 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [{ name = "Iván Calvo Rodríguez" }]
-dependencies = []
+dependencies = ["fastapi==0.158.0", "uvicorn==0.54.0"]
+
+[project.scripts]
+epf-web = "epf_spain.web:main"
 
 [project.optional-dependencies]
 dev = ["ruff==0.17.0", "pre-commit==4.7.0"]

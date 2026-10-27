@@ -1,0 +1,47 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  # Solo comprueba: el despliegue se salta fuera de main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  comprobaciones:
+    # Fijado: ubuntu-latest pasa a Ubuntu 26.04 entre el 19 oct y el 19 nov de 2026
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"   # la de la imagen
+      # La misma versión que pre-commit y el grupo dev del pyproject
+      - run: pip install ruff==0.17.0
+      - run: ruff check --output-format=github .
+      - run: ruff format --check .
+      # Sin pytest todavía: tests/ solo tiene el .gitkeep y pytest falla sin tests
+      - name: Construir la imagen
+        run: docker build --tag epf-spain:ci .
+
+  desplegar:
+    needs: comprobaciones
+    # El push a main y el lanzamiento manual sobre main; nunca un PR ni otra rama
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    # Un despliegue detrás de otro, sin cancelar el que ya está en marcha
+    concurrency:
+      group: desplegar
+      cancel-in-progress: false
+    env:
+      RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+    steps:
+      # Sin el secret (hasta que exista el servicio en Render) el paso se salta
+      - name: Llamar al gancho de Render
+        if: env.RENDER_DEPLOY_HOOK_URL != ''
+        # ref: el commit que acaba de pasar las comprobaciones, no el último de main.
+        # --fail pone el trabajo en rojo si Render no responde 2xx; la URL no se imprime
+        run: curl --fail --silent --show-error --request POST "${RENDER_DEPLOY_HOOK_URL}&ref=${GITHUB_SHA}"

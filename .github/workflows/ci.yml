@@ -32,6 +32,10 @@ jobs:
     # El push a main y el lanzamiento manual sobre main; nunca un PR ni otra rama
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
+    # El gancho vive en el entorno production, que GitHub limita a main
+    environment:
+      name: production
+      url: https://epf-spain.onrender.com
     # Un despliegue detrás de otro, sin cancelar el que ya está en marcha
     concurrency:
       group: desplegar
@@ -39,9 +43,13 @@ jobs:
     env:
       RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
     steps:
-      # Sin el secret (hasta que exista el servicio en Render) el paso se salta
+      # Sin el secret del entorno, rojo: antes se saltaba en verde y no te enterabas
       - name: Llamar al gancho de Render
-        if: env.RENDER_DEPLOY_HOOK_URL != ''
         # ref: el commit que acaba de pasar las comprobaciones, no el último de main.
         # --fail pone el trabajo en rojo si Render no responde 2xx; la URL no se imprime
-        run: curl --fail --silent --show-error --request POST "${RENDER_DEPLOY_HOOK_URL}&ref=${GITHUB_SHA}"
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+            echo "::error::Falta RENDER_DEPLOY_HOOK_URL en el entorno production"
+            exit 1
+          fi
+          curl --fail --silent --show-error --request POST "${RENDER_DEPLOY_HOOK_URL}&ref=${GITHUB_SHA}"

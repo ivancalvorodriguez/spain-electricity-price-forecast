@@ -49,3 +49,20 @@ Por HTTP redirige a HTTPS (301). Con el servicio dormido, la primera
 respuesta tarda alrededor de un minuto.
 
 **Qué se rompió.** Nada.
+
+## 02/11/2026 · el gancho, al entorno `production`
+
+**Qué se hizo.** Entorno `production` en GitHub, con *Deployment
+branches* limitado a `main`. `RENDER_DEPLOY_HOOK_URL` pasa del
+repositorio al entorno, y el trabajo `desplegar` lo declara con la URL
+del servicio. El paso del gancho falla si la URL llega vacía, en vez de
+saltarse en verde.
+
+**Qué se rompió.** Nada.
+
+**Lo que podía haberse roto:**
+
+- Un secreto no se puede volver a leer en GitHub: la URL del gancho se
+  copia otra vez de Render (*Settings* → *Deploy Hook*).
+- Si el repo pasara a privado, el plan gratuito deja de aplicar los
+  entornos: `desplegar` se quedaría sin el gancho y ahora saldría en rojo.

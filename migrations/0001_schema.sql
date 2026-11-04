@@ -1,3 +1,8 @@
+CREATE TABLE schema_migration (
+    version     text        PRIMARY KEY,
+    applied_at  timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE source (
     id    smallint PRIMARY KEY,
     code  text NOT NULL UNIQUE,
@@ -24,3 +29,5 @@ CREATE TABLE observation (
     estimated     boolean     NOT NULL DEFAULT false,
     PRIMARY KEY (indicator_id, period_start, published_at)
 );
+
+INSERT INTO schema_migration (version) VALUES ('0001');

@@ -24,6 +24,61 @@ Para pararlo, `docker compose down`. Con `-v` se borran también los datos.
 
 Sin Docker, solo el servicio web: `pip install -e .` y `epf-web`.
 
+## Base de datos
+
+Una tabla estrecha, `observation`: un valor, el inicio del periodo al que
+se refiere (`period_start`) y cuándo se supo (`published_at`), las dos en
+`timestamptz`. Con `published_at`, «la mejor previsión que existía antes
+del cierre» es una consulta y no una reconstrucción. Cada serie es una fila
+de `indicator` (fuente, código en la fuente, zona, unidad y resolución), y
+cada fuente, una de `source`.
+
+### Migraciones
+
+Ficheros SQL numerados en [`migrations/`](migrations), aplicados en orden
+con `psql`, cada uno en una sola transacción. Cada fichero termina
+apuntándose en `schema_migration`: `TABLE schema_migration;` dice en qué
+punto está una base. Si se aplica dos veces el mismo fichero, falla por
+clave duplicada y no cambia nada.
+
+- `0001_schema.sql`: `schema_migration`, `source`, `indicator` y
+  `observation`.
+- `0002_reference_data.sql`: las fuentes y los indicadores, con sus `id`.
+  Los datos de referencia van en migraciones y no en la carga: la carga
+  depende de esos `id`, y una base creada desde cero queda completa. Una
+  serie nueva es una migración nueva.
+- `0003_spot_price_hourly.sql`: la vista del precio horario.
+
+En Windows no hace falta instalar `psql`: se usa el del contenedor `db`.
+Para aplicarlas desde cero en una base local:
+
+```sh
+docker compose cp migrations db:/tmp/
+docker compose exec -T db sh -c 'for f in /tmp/migrations/*.sql; do echo == $f; psql -U $POSTGRES_USER -d $POSTGRES_DB -v ON_ERROR_STOP=1 --single-transaction -q -f $f || exit 1; done'
+```
+
+Las variables las expande el `sh` del contenedor, no tu terminal. En `cmd`,
+que no entiende las comillas simples, cámbialas por dobles.
+
+En Neon, igual pero con `psql $DATABASE_URL_DIRECT` en lugar de `-U … -d …`.
+Las migraciones van por la **cadena directa** (el host sin `-pooler`),
+que está solo en el `.env` local: el *pooler* de Neon va en modo
+*transaction* y no conserva el estado de sesión. El servicio web usa el
+*pooler*.
+
+### El precio: de horario a cuartohorario
+
+El mercado diario pasó a periodos de 15 minutos el 1 de octubre de 2025
+(primer día de entrega; la subasta, el 30 de septiembre). El precio se
+guarda tal como se publica, con un indicador por resolución
+(`spot_price_1h` antes y `spot_price_15m` después), y la vista
+`spot_price_hourly` da una serie horaria continua: la media de los cuatro
+cuartos de cada hora y, antes de la frontera, el precio horario tal cual.
+`source_resolution` dice de qué régimen sale cada hora, y `complete`
+marca las horas a las que les falta algún cuarto. Se agrupa por hora UTC:
+como Madrid está a horas enteras de UTC, los días de 23 y 25 horas salen
+bien.
+
 ## Despliegue
 
 Está en <https://epf-spain.onrender.com>, un Web Service gratuito de Render

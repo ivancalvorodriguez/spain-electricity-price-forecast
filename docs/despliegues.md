@@ -77,7 +77,11 @@ que estaba vacía, con el `psql` del contenedor `db` y la cadena directa
 cero en el Postgres 18 del `compose`, con los datos del archivador del 1
 al 5 de noviembre.
 
-**Qué se rompió.** PENDIENTE: completar al aplicarlas en Neon.
+**Qué se rompió.** Nada: las tres entraron a la primera. Se aplicaron
+15 segundos después de fusionar el PR #7, no antes como estaba previsto.
+No tuvo efecto porque el servicio todavía no lee la base, pero en
+adelante la migración va antes de fusionar: cuando el código use una
+tabla nueva, desplegarlo sin ella rompe el servicio.
 
 **Lo que podía haberse roto:**
 

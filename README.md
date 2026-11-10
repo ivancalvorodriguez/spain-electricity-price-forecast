@@ -48,6 +48,9 @@ clave duplicada y no cambia nada.
   depende de esos `id`, y una base creada desde cero queda completa. Una
   serie nueva es una migración nueva.
 - `0003_spot_price_hourly.sql`: la vista del precio horario.
+- `0004_history_omie_mibgas.sql`: los indicadores del histórico (el precio
+  de OMIE, horario y cuartohorario, y el índice diario de gas de MIBGAS) y
+  la vista del precio horario con las dos fuentes.
 
 En Windows no hace falta instalar `psql`: se usa el del contenedor `db`.
 Para aplicarlas desde cero en una base local:
@@ -78,6 +81,44 @@ cuartos de cada hora y, antes de la frontera, el precio horario tal cual.
 marca las horas a las que les falta algún cuarto. Se agrupa por hora UTC:
 como Madrid está a horas enteras de UTC, los días de 23 y 25 horas salen
 bien.
+
+### El histórico: OMIE y MIBGAS
+
+El precio desde el 1 de enero de 2014 sale de los ficheros públicos de
+OMIE, sin token. No se pide a ESIOS: su token es de uso personal, y doce
+años de precio pedidos a su API serían una descarga masiva. Es el mismo
+número que el indicador 600 de ESIOS (coinciden cuarto a cuarto del 8 de
+octubre al 10 de noviembre de 2026), pero va en indicadores propios,
+`omie_spot_price_1h` y `omie_spot_price_15m`, con `source = omie`. De
+2014 a 2017 llega en los ficheros `INT_PBC_EV_H`, y desde 2018, en
+`marginalpdbc`. Si OMIE republicó un día (`.2`, `.3`), vale la versión
+más alta.
+
+La vista `spot_price_hourly` junta las dos fuentes: en cada hora, la
+versión completa y, entre completas, la de OMIE. ESIOS cubre los días que
+el histórico de OMIE todavía no tiene. La columna `source` dice de dónde
+sale cada hora.
+
+El gas es el **MIBGAS-ES Index** (en los ficheros de 2015-2017 y
+2021-2022, «MIBGAS Index» con área ES): el precio medio de todo lo negociado para un día de gas en el
+PVB, en EUR/MWh, en `gas_mibgas_es_index`. Es la única serie diaria sin
+cortes desde que abrió el mercado; los índices *day-ahead* del PVB
+empiezan en 2023.
+
+**MIBGAS abrió el 16 de diciembre de 2015** (el primer día de gas con
+índice es el 17). Antes no hay precio de gas ibérico, así que **2014 y
+2015 solo sirven como rezagos del precio**: cualquier modelo con gas
+empieza en 2016.
+
+Nada del histórico tiene hora de descarga real, así que va con
+`estimated = true` y una `published_at` nominal:
+
+- **Precio:** D-1 a las 13:00 de Madrid, la hora de la casación.
+- **Gas:** el final del día de gas, D+1 a las 00:00 de Madrid. MIBGAS
+  calcula el índice con todas las sesiones ya cerradas para ese día y
+  actualiza la tabla a las 21:30; se redondea hacia después para no usar
+  nunca un valor antes de que existiera. Para la subasta de D+1, que se
+  cierra a mediodía de D, el último índice disponible es el de D-1.
 
 ## Despliegue
 

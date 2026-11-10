@@ -94,3 +94,34 @@ tabla nueva, desplegarlo sin ella rompe el servicio.
 - El servicio web no lee todavía la base: si el esquema estuviera mal,
   `/health` seguiría en verde. La comprobación es `TABLE schema_migration;`
   y `\dt` en Neon, no el despliegue.
+
+## 10/11/2026 · el histórico, en Neon (migración 0004 y carga)
+
+**Qué se hizo.** La `0004_history_omie_mibgas.sql` (los indicadores 6 y 7,
+el precio de OMIE horario y cuartohorario, y el 8, el MIBGAS-ES Index; y la
+vista `spot_price_hourly` con las dos fuentes), aplicada en la rama
+`production` de Neon por la cadena directa, con `--single-transaction`.
+Después, la carga del histórico con `cargar_historico.sql` (fuera del repo):
+145.943 filas en 3 segundos, del 1 de enero de 2014 al 10 de noviembre de
+2026 en precio y del 17 de diciembre de 2015 al 8 de noviembre de 2026 en
+gas. Antes, lo mismo en una base local desde cero (`historico`, en el
+`compose`). Esta vez la migración va **antes** de fusionar, como se apuntó
+el 04/11: el PR de `feat/historical-load` todavía no existe.
+
+**Qué se rompió.** Nada. En Neon salen los mismos recuentos que en local,
+112.728 horas seguidas sin ninguna incompleta, ningún día de gas de menos
+y la misma suma de control de todos los valores (10.417.389,20). La base
+ocupa 22 MB.
+
+**Lo que podía haberse roto:**
+
+- La 0004 rehace la vista con `CREATE OR REPLACE VIEW`, que solo deja
+  añadir columnas por detrás. Si se hubiera cambiado el nombre o el tipo
+  de una columna de la 0003, la migración habría fallado entera (y, por
+  la transacción, sin dejar nada a medias).
+- El CSV de la carga se genera fuera del repo y no está versionado. Para
+  repetir la carga hay que regenerarlo con `cargar_historico.py` desde
+  `historico/`; si OMIE republica un día, saldría una versión distinta.
+- En Neon no hay todavía nada de lo archivado de ESIOS: la vista sale
+  entera de OMIE. Cuando entre lo archivado, la vista usa ESIOS solo para
+  las horas que OMIE no tenga.

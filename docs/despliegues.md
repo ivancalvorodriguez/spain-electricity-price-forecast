@@ -125,3 +125,34 @@ ocupa 22 MB.
 - En Neon no hay todavía nada de lo archivado de ESIOS: la vista sale
   entera de OMIE. Cuando entre lo archivado, la vista usa ESIOS solo para
   las horas que OMIE no tenga.
+
+## 11/11/2026 · festivos, calendario e índice, en Neon (migraciones 0005 y 0006)
+
+**Qué se hizo.** La `0005_holiday_calendar.sql` (la tabla `holiday`, con
+las fiestas laborales de cada comunidad de 2014 a 2027 según el BOE y los
+feriados obligatorios de Portugal, y la vista `calendar_day`) y la
+`0006_observation_hour_index.sql` (el índice sobre
+`date_trunc('hour', period_start, 'UTC')` para la vista del precio),
+aplicadas a las 13:50 en la rama `production` de Neon por la cadena
+directa, cada una con `--single-transaction`. Antes de fusionar el PR de
+`feat/holiday-calendar`, como se apuntó el 04/11. Antes, probadas desde
+cero (0001-0006) en una base aparte del `compose` y encima de la base
+local `historico`.
+
+**Qué se rompió.** Nada. En Neon salen los mismos números que en local:
+3.366 filas en `holiday` (3.192 de España y 174 de Portugal), y 5.113
+días en `calendar_day`, con 28 cambios de hora y 121 festivos nacionales.
+La consulta de un día de precio usa el índice nuevo y tarda 2 ms. Son 96
+filas de OMIE: en Neon no hay nada archivado de ESIOS. La base ocupa
+25 MB (22 MB antes).
+
+**Lo que podía haberse roto:**
+
+- En `cmd`, el `sh -c` va con comillas dobles. `$DATABASE_URL_DIRECT` va
+  sin comillas dentro del `sh`: la cadena lleva `&` (`sslmode=require&…`),
+  pero al expandir una variable `sh` no vuelve a interpretar el `&`.
+- La 0005 no se puede aplicar dos veces: falla en el `CREATE TABLE
+  holiday` y, por la transacción, no deja nada a medias.
+- Los festivos de 2028 no están. Hace falta una migración nueva en cuanto
+  salga su BOE (hacia octubre de 2027), antes de que D+7 caiga en 2028.
+  `calendar_day` termina el 31/12/2027 y no inventa días.

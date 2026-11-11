@@ -51,6 +51,11 @@ clave duplicada y no cambia nada.
 - `0004_history_omie_mibgas.sql`: los indicadores del histórico (el precio
   de OMIE, horario y cuartohorario, y el índice diario de gas de MIBGAS) y
   la vista del precio horario con las dos fuentes.
+- `0005_holiday_calendar.sql`: los festivos de España (por comunidad) y
+  de Portugal de 2014 a 2027, y la vista `calendar_day`.
+- `0006_observation_hour_index.sql`: el índice que usa la vista del
+  precio horario al filtrar por fechas
+  ([`docs/rendimiento.md`](docs/rendimiento.md)).
 
 En Windows no hace falta instalar `psql`: se usa el del contenedor `db`.
 Para aplicarlas desde cero en una base local:
@@ -119,6 +124,38 @@ Nada del histórico tiene hora de descarga real, así que va con
   actualiza la tabla a las 21:30; se redondea hacia después para no usar
   nunca un valor antes de que existiera. Para la subasta de D+1, que se
   cierra a mediodía de D, el último índice disponible es el de D-1.
+
+### Festivos y calendario
+
+Lo único que se sabe de cada día antes de que llegue y que no se revisa
+nunca: con el precio rezagado y el gas, es lo que puede entrar en el
+backtest largo.
+
+`holiday` tiene una fila por día y ámbito. El ámbito es el código ISO
+3166-2 de cada comunidad (`ES-AN` … `ES-ML`, con Ceuta y Melilla) o `PT`
+para Portugal: el mercado diario es ibérico. No hay fila «nacional»: un
+festivo nacional es el que tienen todas las comunidades.
+
+- **España**, de 2014 a 2027, de las resoluciones anuales del BOE con
+  la relación de fiestas laborales, tal como se publicaron (el
+  identificador de cada una está en la migración). Si una comunidad
+  cambió después alguna fecha en su boletín, aquí no está. Las fiestas
+  locales y las insulares de Canarias quedan fuera.
+- **Portugal**, los feriados obligatorios del Código do Trabalho. De 2013
+  a 2015 se suspendieron cuatro (Corpo de Deus, 5 de outubro, 1 de
+  novembro y 1 de dezembro). El Carnaval no es feriado obligatorio.
+
+La vista `calendar_day` da un día por fila, desde enero del primer año
+con festivos hasta diciembre del último. Más allá no inventa nada: si un
+año no tiene festivos cargados, no sale. Columnas: `isodow` (1, lunes),
+`holiday_regions` (cuántas de las 15 comunidades peninsulares tienen
+fiesta, porque las previsiones de ESIOS y el precio son del sistema
+peninsular), `national_holiday` (fiesta en las 15), `pt_holiday` y
+`hours` (23 o 25 el día del cambio de hora, en hora de Madrid).
+
+**Cada año nuevo es una migración nueva**, en cuanto salga su BOE (hacia
+octubre). La 2028 hace falta antes de que el modelo prevea días de 2028:
+la última semana de diciembre de 2027 ya mira a D+7.
 
 ## Despliegue
 

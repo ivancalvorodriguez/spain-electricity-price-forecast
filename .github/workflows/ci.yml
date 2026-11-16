@@ -14,6 +14,8 @@ jobs:
   comprobaciones:
     # Fijado: ubuntu-latest pasa a Ubuntu 26.04 entre el 19 oct y el 19 nov de 2026
     runs-on: ubuntu-24.04
+    # Tarda unos 16 s. Sin tope, un paso colgado espera hasta 6 h
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -32,6 +34,9 @@ jobs:
     # El push a main y el lanzamiento manual sobre main; nunca un PR ni otra rama
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
+    # Tarda unos 4 s. El 11/11 el gancho tardó 27 min en contestar, y con el
+    # concurrency bloqueaba también los despliegues de detrás
+    timeout-minutes: 5
     # El gancho vive en el entorno production, que GitHub limita a main
     environment:
       name: production
@@ -46,10 +51,15 @@ jobs:
       # Sin el secret del entorno, rojo: antes se saltaba en verde y no te enterabas
       - name: Llamar al gancho de Render
         # ref: el commit que acaba de pasar las comprobaciones, no el último de main.
-        # --fail pone el trabajo en rojo si Render no responde 2xx; la URL no se imprime
+        # --fail pone el trabajo en rojo si Render no responde 2xx; la URL no se imprime.
+        # Un minuto por intento y dos reintentos: caben en los 5 min del trabajo.
+        # --retry-all-errors porque el 11/11 llegó un 520 de Cloudflare, que --retry
+        # solo no reintenta. Si Render recibe dos, encola dos despliegues del mismo
+        # commit, sin daño
         run: |
           if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
             echo "::error::Falta RENDER_DEPLOY_HOOK_URL en el entorno production"
             exit 1
           fi
-          curl --fail --silent --show-error --request POST "${RENDER_DEPLOY_HOOK_URL}&ref=${GITHUB_SHA}"
+          curl --fail --silent --show-error --max-time 60 --retry 2 --retry-all-errors \
+            --request POST "${RENDER_DEPLOY_HOOK_URL}&ref=${GITHUB_SHA}"

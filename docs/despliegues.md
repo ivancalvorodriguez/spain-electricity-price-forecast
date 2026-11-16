@@ -156,3 +156,57 @@ filas de OMIE: en Neon no hay nada archivado de ESIOS. La base ocupa
 - Los festivos de 2028 no están. Hace falta una migración nueva en cuanto
   salga su BOE (hacia octubre de 2027), antes de que D+7 caiga en 2028.
   `calendar_day` termina el 31/12/2027 y no inventa días.
+
+**Qué se rompió al fusionar: el gancho de Render, 27 minutos colgado.**
+Al fusionar el PR #10 (`fe228db`), `comprobaciones` pasó en 16 s, pero en
+`desplegar` el paso *Llamar al gancho de Render* empezó a las 13:54 y
+terminó en rojo a las 14:21 (intento 1 de la ejecución 43024319754). El
+error: `Process completed with exit code 22`, el código de `curl --fail`
+cuando el servidor responde con un error HTTP. La línea del log:
+`curl: (22) The requested URL returned error: 520`. El 520 no lo da
+Render, sino Cloudflare, que va delante: significa que el servidor de
+detrás devolvió algo que Cloudflare no entendió o cortó la conexión. La
+respuesta llegó a los 27 minutos. Mientras,
+el panel de Render se quedaba en *Loading* y su página de estado decía
+*All Systems Operational*. Hacia las 14:20 volvió el panel. Con *Re-run
+failed jobs* (intento 2), el gancho respondió en 1 s a las 14:27, y
+`/health` dio 200. La base no se vio afectada: las migraciones ya estaban
+en Neon desde las 13:50.
+
+**Lo que podía haberse roto:**
+
+- Ni el `curl` tenía `--max-time` ni el trabajo `timeout-minutes`. Si
+  Render no hubiera contestado nunca, `desplegar` habría esperado hasta
+  6 horas (el límite de GitHub) y, por el `concurrency`, los despliegues
+  de detrás se habrían quedado en cola todo ese tiempo. Arreglado el
+  16/11 (entrada de abajo).
+- La página de estado de Render no sirve para saber si el fallo es suyo:
+  decía que todo iba bien con el panel caído.
+
+## 16/11/2026 · la CI, como mucho 5 minutos
+
+**Qué se hizo.** `timeout-minutes: 5` en los dos trabajos de `ci.yml`
+(hoy tardan 16 y 4 s) y, en el `curl` del gancho, `--max-time 60
+--retry 2 --retry-all-errors`: un minuto por intento y dos reintentos.
+Los tres intentos, con sus esperas, caben en los 5 minutos.
+`--retry-all-errors` hace falta por el 520 del 11/11: `--retry` solo
+reintenta si no hay respuesta o con un 408, 429, 500, 502, 503 o 504, y
+probado en local contra un servidor que da 520, hace un solo intento.
+Con la opción, hace los tres. Si el gancho vuelve a colgarse, el trabajo sale en rojo en
+unos 3 minutos y se relanza a mano con *Re-run failed jobs*, como el
+11/11.
+
+**Qué se rompió.** Nada.
+
+**Lo que podía haberse roto:**
+
+- Si Render recibe la petición pero la respuesta no llega, `curl`
+  reintenta y Render encola dos despliegues del mismo commit. No hace
+  daño: el segundo despliega la misma imagen.
+- Con `--retry-all-errors` también se reintenta un error que no se va a
+  arreglar solo, como un 404 si la URL del gancho está mal. Cuesta 3 s
+  de más (las esperas de 1 y 2 s) y el trabajo sale en rojo igual.
+- Con el tope, un `docker build` lento (sin caché, con una dependencia
+  nueva pesada) podría pasar de 5 minutos y poner `comprobaciones` en
+  rojo sin que haya nada mal. Si pasa, se sube el tope de ese trabajo,
+  no se quita.

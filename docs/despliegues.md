@@ -210,3 +210,35 @@ unos 3 minutos y se relanza a mano con *Re-run failed jobs*, como el
   nueva pesada) podría pasar de 5 minutos y poner `comprobaciones` en
   rojo sin que haya nada mal. Si pasa, se sube el tope de ese trabajo,
   no se quita.
+
+## 18/11/2026 · días completos, en Neon (migración 0007)
+
+**Qué se hizo.** La `0007_spot_price_day.sql` (la vista `spot_price_day`:
+una fila por día de Madrid con las horas que tiene, 23, 24 o 25, las que
+tienen precio y las completas, y `complete` solo si lo están todas; es la
+regla 5, un día incompleto no se publica), aplicada el 18/11 en la rama
+`production` de Neon por la cadena directa, con `--single-transaction`.
+Antes de fusionar el PR de `test/dst-utc`, como la 0005 y la 0006. Antes,
+probada en el Postgres de usar y tirar de los tests (72 en verde) y
+encima de la base local `historico`, dentro de una transacción deshecha:
+5 ms por día y 160 ms los doce años, con el índice de la 0006.
+
+**Qué se rompió.** Nada. `schema_migration` llega a `0007`. Antes de hoy
+hay 7 días incompletos, del 11/11 al 17/11: el precio cargado en Neon
+llega hasta el 10/11. Del 1/1/2014 al 10/11/2026 no hay ninguno, igual
+que en local.
+
+**Lo que podía haberse roto:**
+
+- La 0007 no se puede aplicar dos veces: falla en el `CREATE VIEW` y, por
+  la transacción, no deja nada a medias.
+- `spot_price_day` depende de `spot_price_hourly` y de `calendar_day`.
+  Una migración futura que cambie una de las dos con `CREATE OR REPLACE
+  VIEW` solo puede añadir columnas por detrás; para quitar o renombrar
+  una, Postgres obliga a borrar y volver a crear también esta.
+- `calendar_day` termina el 31/12/2027, y esta vista también: un día de
+  2028 no tendría fila y no saldría como hueco. Se arregla con la
+  migración de festivos de 2028.
+- Mientras no se cargue el precio desde el 11/11, esos días salen
+  incompletos. Es lo correcto: no hay precio. El servicio todavía no
+  publica nada a partir de esta vista.

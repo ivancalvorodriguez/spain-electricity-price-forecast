@@ -56,6 +56,8 @@ clave duplicada y no cambia nada.
 - `0006_observation_hour_index.sql`: el índice que usa la vista del
   precio horario al filtrar por fechas
   ([`docs/rendimiento.md`](docs/rendimiento.md)).
+- `0007_spot_price_day.sql`: la vista `spot_price_day`, que dice qué días
+  tienen el precio completo (regla 5).
 
 En Windows no hace falta instalar `psql`: se usa el del contenedor `db`.
 Para aplicarlas desde cero en una base local:
@@ -86,6 +88,11 @@ cuartos de cada hora y, antes de la frontera, el precio horario tal cual.
 marca las horas a las que les falta algún cuarto. Se agrupa por hora UTC:
 como Madrid está a horas enteras de UTC, los días de 23 y 25 horas salen
 bien.
+
+Un día incompleto no se publica (regla 5): la vista `spot_price_day` dice,
+para cada día de Madrid, cuántas horas tiene (23, 24 o 25), cuántas tienen
+precio y cuántas están completas, y `complete` solo si lo están todas. Las
+horas sin ningún dato no se rellenan: no salen, y el día queda incompleto.
 
 ### El histórico: OMIE y MIBGAS
 
@@ -156,6 +163,30 @@ peninsular), `national_holiday` (fiesta en las 15), `pt_holiday` y
 **Cada año nuevo es una migración nueva**, en cuanto salga su BOE (hacia
 octubre). La 2028 hace falta antes de que el modelo prevea días de 2028:
 la última semana de diciembre de 2027 ya mira a D+7.
+
+## Tests
+
+```sh
+pip install -e ".[dev]"
+pytest
+```
+
+Hace falta Docker en marcha. Cada ejecución levanta un Postgres 18 aparte,
+con los datos en memoria, le aplica `migrations/` y lo borra al terminar:
+no toca la base del `compose` ni Neon. Cada test corre dentro de una
+transacción que se deshace al acabar, así que lo que carga uno no lo ve el
+siguiente. Los datos de prueba son días reales, en
+[`tests/fixtures/`](tests/fixtures).
+
+- `test_dst_and_utc.py`: los días de 23 y 25 horas y UTC frente a hora de
+  Madrid, con el precio de OMIE de los ocho cambios de hora de 2023 a 2026
+  y el 25 oct y el 4 nov de 2026 en el formato de ESIOS.
+
+Los datos de ESIOS no se publican (el token es de uso personal): los
+ficheros de `tests/fixtures/esios/` tienen el formato de ESIOS, pero todos
+los valores son inventados. Los genera `tests/fixtures/esios/build.py`. El
+precio de `tests/fixtures/omie/` es de OMIE ([omie.es](https://www.omie.es)),
+que permite usarlo citando la fuente.
 
 ## Despliegue
 

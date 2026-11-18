@@ -56,6 +56,8 @@ clave duplicada y no cambia nada.
 - `0006_observation_hour_index.sql`: el índice que usa la vista del
   precio horario al filtrar por fechas
   ([`docs/rendimiento.md`](docs/rendimiento.md)).
+- `0007_spot_price_day.sql`: la vista `spot_price_day`, que dice qué días
+  tienen el precio completo (regla 5).
 
 En Windows no hace falta instalar `psql`: se usa el del contenedor `db`.
 Para aplicarlas desde cero en una base local:
@@ -86,6 +88,11 @@ cuartos de cada hora y, antes de la frontera, el precio horario tal cual.
 marca las horas a las que les falta algún cuarto. Se agrupa por hora UTC:
 como Madrid está a horas enteras de UTC, los días de 23 y 25 horas salen
 bien.
+
+Un día incompleto no se publica (regla 5): la vista `spot_price_day` dice,
+para cada día de Madrid, cuántas horas tiene (23, 24 o 25), cuántas tienen
+precio y cuántas están completas, y `complete` solo si lo están todas. Las
+horas sin ningún dato no se rellenan: no salen, y el día queda incompleto.
 
 ### El histórico: OMIE y MIBGAS
 

@@ -29,3 +29,14 @@ docker compose exec -T db sh -c 'psql -U $POSTGRES_USER -d historico -q' > tests
 \copy (SELECT o.indicator_id, to_char(o.period_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS period_start, to_char(o.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at, o.value, o.estimated FROM calendar_day c JOIN observation o ON o.indicator_id IN (6, 7) AND o.period_start >= c.day::timestamp AT TIME ZONE 'Europe/Madrid' AND o.period_start < (c.day + 1)::timestamp AT TIME ZONE 'Europe/Madrid' WHERE c.hours <> 24 AND c.day BETWEEN '2023-01-01' AND '2026-12-31' ORDER BY o.period_start) TO STDOUT WITH (FORMAT csv, HEADER true)
 EOF
 ```
+
+`frontera_15_min.csv`: el precio de OMIE del 30 sep y del 1 oct 2025, los dos
+días de Madrid a cada lado del paso a 15 minutos. El 30 sep, 24 horas
+(indicador 6); el 1 oct, el primer día de entrega en cuartos, 96 cuartos
+(indicador 7). Sacado de la misma base el 18 nov 2026:
+
+```sh
+docker compose exec -T db sh -c 'psql -U $POSTGRES_USER -d historico -q' > tests/fixtures/omie/frontera_15_min.csv <<'EOF'
+\copy (SELECT o.indicator_id, to_char(o.period_start AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS period_start, to_char(o.published_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS published_at, o.value, o.estimated FROM observation o WHERE o.indicator_id IN (6, 7) AND o.period_start >= '2025-09-30'::timestamp AT TIME ZONE 'Europe/Madrid' AND o.period_start < '2025-10-02'::timestamp AT TIME ZONE 'Europe/Madrid' ORDER BY o.period_start) TO STDOUT WITH (FORMAT csv, HEADER true)
+EOF
+```

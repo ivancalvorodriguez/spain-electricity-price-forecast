@@ -10,7 +10,7 @@ Lo caro se hace una vez y lo que los tests ensucian se limpia en cada uno:
 - `db` (función): esa conexión, dentro de una transacción que se deshace al acabar
   cada test. Lo que inserta un test no lo ve el siguiente, sin vaciar tablas. Un
   test que haga `commit()` rompería esto: ninguno debe hacerlo.
-- `load_esios` y `load_omie_dst` (función): cargan los ficheros de
+- `load_esios`, `load_omie` y `load_omie_dst` (función): cargan los ficheros de
   `tests/fixtures/` en `observation`, dentro de la transacción del test.
 
 Hace falta Docker en marcha. La primera vez baja la imagen `postgres:18`.
@@ -143,15 +143,28 @@ def load_esios(db: psycopg.Connection) -> Callable[[str, str], int]:
 
 
 @pytest.fixture
-def load_omie_dst(db: psycopg.Connection) -> None:
+def load_omie(db: psycopg.Connection) -> Callable[[str], None]:
+    """Fábrica: `load_omie("frontera_15_min")` carga `tests/fixtures/omie/<nombre>.csv`.
+
+    Los CSV de OMIE ya vienen con las columnas de `observation`, en UTC.
+    """
+
+    def load(name: str) -> None:
+        path = FIXTURES / "omie" / f"{name}.csv"
+        with (
+            db.cursor() as cur,
+            cur.copy(
+                "COPY observation"
+                " (indicator_id, period_start, published_at, value, estimated)"
+                " FROM STDIN WITH (FORMAT csv, HEADER true)"
+            ) as copy,
+        ):
+            copy.write(path.read_bytes())
+
+    return load
+
+
+@pytest.fixture
+def load_omie_dst(load_omie: Callable[[str], None]) -> None:
     """Carga el precio de OMIE de los días de cambio de hora de 2023 a 2026."""
-    path = FIXTURES / "omie" / "cambios_de_hora.csv"
-    with (
-        db.cursor() as cur,
-        cur.copy(
-            "COPY observation"
-            " (indicator_id, period_start, published_at, value, estimated)"
-            " FROM STDIN WITH (FORMAT csv, HEADER true)"
-        ) as copy,
-    ):
-        copy.write(path.read_bytes())
+    load_omie("cambios_de_hora")

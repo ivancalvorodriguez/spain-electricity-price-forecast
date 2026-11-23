@@ -14,7 +14,7 @@ jobs:
   comprobaciones:
     # Fijado: ubuntu-latest pasa a Ubuntu 26.04 entre el 19 oct y el 19 nov de 2026
     runs-on: ubuntu-24.04
-    # Sin pytest tardaba unos 16 s; con pytest, por medir en la primera ejecución.
+    # Tarda menos de un minuto (54 s el 23/11 con pytest; sin él, 16 s).
     # Sin tope, un paso colgado espera hasta 6 h
     timeout-minutes: 5
     steps:

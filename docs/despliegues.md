@@ -254,8 +254,11 @@ en local, 72 en verde en 3,4 s, y también en un clon limpio con un
 entorno nuevo. Un test en rojo para el despliegue: `desplegar` necesita
 `comprobaciones`.
 
-**Qué se rompió.** *(Por rellenar al fusionar: tiempo de `comprobaciones`,
-CI y `/health`.)*
+**Qué se rompió.** Nada. En el PR #13, `comprobaciones` en verde en 54 s
+(antes, 16 s): `pip install` 9 s, `docker pull postgres:18` 6 s, `pytest`
+6 s (72 en verde en 4,1 s, Python 3.13.18) y la imagen 8 s. Era la primera
+ejecución, sin caché de pip: al final la guardó (32 MB, 10 s). Muy lejos
+del tope de 5 minutos.
 
 **Lo que podía haberse roto:**
 

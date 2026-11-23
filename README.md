@@ -181,6 +181,12 @@ siguiente. Los datos de prueba son días reales, en
 - `test_dst_and_utc.py`: los días de 23 y 25 horas y UTC frente a hora de
   Madrid, con el precio de OMIE de los ocho cambios de hora de 2023 a 2026
   y el 25 oct y el 4 nov de 2026 en el formato de ESIOS.
+- `test_quarter_hours_and_gaps.py`: el paso de 24 precios a 96 cuartos el
+  1 oct 2025, las horas a las que les falta algún cuarto y los días
+  incompletos, que no se publican (regla 5).
+
+La CI los pasa en cada PR y en cada push a `main`, después de ruff y antes
+de construir la imagen: si un test falla, no se despliega.
 
 Los datos de ESIOS no se publican (el token es de uso personal): los
 ficheros de `tests/fixtures/esios/` tienen el formato de ESIOS, pero todos
@@ -192,8 +198,8 @@ que permite usarlo citando la fuente.
 
 Está en <https://epf-spain.onrender.com>, un Web Service gratuito de Render
 en Frankfurt. La imagen es la del `Dockerfile` y la base de datos, Postgres
-en Neon. Despliega la CI: cuando `main` pasa las comprobaciones, el workflow
-llama al gancho de Render con ese commit.
+en Neon. Despliega la CI: cuando `main` pasa las comprobaciones (ruff, los
+tests y la imagen), el workflow llama al gancho de Render con ese commit.
 
 El plan gratuito tiene 512 MB de memoria y 0,1 CPU, y se apaga a los 15
 minutos sin tráfico: la primera visita después tarda alrededor de un minuto.

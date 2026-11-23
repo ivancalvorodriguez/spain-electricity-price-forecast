@@ -242,3 +242,32 @@ que en local.
 - Mientras no se cargue el precio desde el 11/11, esos días salen
   incompletos. Es lo correcto: no hay precio. El servicio todavía no
   publica nada a partir de esta vista.
+
+## 23/11/2026 · los tests, en la CI
+
+**Qué se hizo.** `comprobaciones` instala el grupo `dev` del
+`pyproject.toml` (`pip install -e ".[dev]"`, con la caché de pip de
+`setup-python`), baja `postgres:18` en su propio paso y pasa `pytest -ra`
+entre ruff y la imagen. Los 72 tests corren contra el Postgres de usar y
+tirar de `tests/conftest.py`, con el Docker que ya trae el runner. Antes,
+en local, 72 en verde en 3,4 s, y también en un clon limpio con un
+entorno nuevo. Un test en rojo para el despliegue: `desplegar` necesita
+`comprobaciones`.
+
+**Qué se rompió.** *(Por rellenar al fusionar: tiempo de `comprobaciones`,
+CI y `/health`.)*
+
+**Lo que podía haberse roto:**
+
+- Los tests dependen de Docker Hub: si no se puede bajar `postgres:18`,
+  `comprobaciones` sale en rojo y no se despliega, aunque el código esté
+  bien. Se relanza con *Re-run failed jobs*.
+- `postgres:18` es una etiqueta que se mueve: cada versión menor nueva
+  entra sola en los tests, igual que en el `compose`. Si un test rompe sin
+  haber cambiado nada, mirar primero qué versión bajó el paso.
+- En la CI, `zoneinfo` usa la base de zonas de Ubuntu; en Windows, el
+  paquete `tzdata`. Si algún año cambian las reglas de Europe/Madrid,
+  pueden no coincidir hasta que se actualicen las dos.
+- La descarga de la imagen y la instalación alargan el trabajo. Con el
+  tope de 5 minutos, si un día pasa de ahí sin estar colgado, se sube el
+  tope, no se quita.

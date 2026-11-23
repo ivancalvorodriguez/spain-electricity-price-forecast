@@ -14,18 +14,26 @@ jobs:
   comprobaciones:
     # Fijado: ubuntu-latest pasa a Ubuntu 26.04 entre el 19 oct y el 19 nov de 2026
     runs-on: ubuntu-24.04
-    # Tarda unos 16 s. Sin tope, un paso colgado espera hasta 6 h
+    # Tarda menos de un minuto (54 s el 23/11 con pytest; sin él, 16 s).
+    # Sin tope, un paso colgado espera hasta 6 h
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
           python-version: "3.13"   # la de la imagen
-      # La misma versión que pre-commit y el grupo dev del pyproject
-      - run: pip install ruff==0.17.0
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      # El grupo dev del pyproject: ruff (la misma versión que pre-commit), pytest
+      # y psycopg, con las versiones fijadas ahí
+      - run: pip install -e ".[dev]"
       - run: ruff check --output-format=github .
       - run: ruff format --check .
-      # Sin pytest todavía: tests/ solo tiene el .gitkeep y pytest falla sin tests
+      # Postgres 18 de usar y tirar (tests/conftest.py): el runner ya trae Docker.
+      # La imagen se baja en su propio paso, para ver en el registro cuánto tarda
+      # la descarga y cuánto los tests
+      - run: docker pull postgres:18
+      - run: pytest -ra
       - name: Construir la imagen
         run: docker build --tag epf-spain:ci .
 

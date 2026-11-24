@@ -76,6 +76,35 @@ que está solo en el `.env` local: el *pooler* de Neon va en modo
 *transaction* y no conserva el estado de sesión. El servicio web usa el
 *pooler*.
 
+### La carga: `epf-ingest`
+
+Lo que guarda el archivador de ESIOS, un fichero por serie y día
+(`<serie>/<día>.json.gz`), entra en `observation` con el comando
+`epf-ingest`, contra la base de la variable `DATABASE_URL`:
+
+```sh
+epf-ingest datos/                                 # una carpeta, entera
+epf-ingest datos/precio_spot/2026-11-24.json.gz   # o ficheros sueltos
+```
+
+- `period_start` es el `datetime_utc` de ESIOS, y `published_at`, la hora
+  a la que el archivador lo descargó. Una fecha sin desfase horario es un
+  error: no se adivina en qué zona está.
+- Los valores, en `Decimal`, exactos desde el JSON.
+- Se puede relanzar: una descarga ya cargada no entra dos veces
+  (`ON CONFLICT DO NOTHING`). Una descarga posterior del mismo día es otra
+  versión y entra con su propia `published_at`.
+- Cada fichero va en su propia transacción: entra entero o no entra nada.
+  Si uno falla, sigue con los demás y termina con código 1. Sin
+  `DATABASE_URL`, sin ficheros o sin conexión, termina con código 2 sin
+  cargar nada.
+- Solo conoce los indicadores 1775, 1777, 1779 y 600 (el precio, en
+  `spot_price_15m`). Otro indicador es un error: una serie nueva es antes
+  una migración.
+
+Todavía no corre sola: se lanza a mano. El histórico de OMIE y MIBGAS no
+pasa por aquí (ver *El histórico*).
+
 ### El precio: de horario a cuartohorario
 
 El mercado diario pasó a periodos de 15 minutos el 1 de octubre de 2025
@@ -175,7 +204,8 @@ Hace falta Docker en marcha. Cada ejecución levanta un Postgres 18 aparte,
 con los datos en memoria, le aplica `migrations/` y lo borra al terminar:
 no toca la base del `compose` ni Neon. Cada test corre dentro de una
 transacción que se deshace al acabar, así que lo que carga uno no lo ve el
-siguiente. Los datos de prueba son días reales, en
+siguiente. Los del comando `epf-ingest`, que abre su propia conexión y
+confirma, vacían `observation` al acabar. Los datos de prueba son días reales, en
 [`tests/fixtures/`](tests/fixtures).
 
 - `test_dst_and_utc.py`: los días de 23 y 25 horas y UTC frente a hora de
@@ -184,6 +214,10 @@ siguiente. Los datos de prueba son días reales, en
 - `test_quarter_hours_and_gaps.py`: el paso de 24 precios a 96 cuartos el
   1 oct 2025, las horas a las que les falta algún cuarto y los días
   incompletos, que no se publican (regla 5).
+- `test_ingest.py`: la carga con `epf-ingest`. Las filas de cada serie,
+  los valores exactos y en UTC, que relanzar no duplica, que una descarga
+  posterior es otra versión, que un fichero roto no deja nada a medias y
+  el comando entero frente a los JSON leídos aparte.
 
 La CI los pasa en cada PR y en cada push a `main`, después de ruff y antes
 de construir la imagen: si un test falla, no se despliega.

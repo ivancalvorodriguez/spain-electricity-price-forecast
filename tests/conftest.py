@@ -9,30 +9,31 @@ Lo caro se hace una vez y lo que los tests ensucian se limpia en cada uno:
 - `connection` (sesión): una sola conexión para toda la sesión.
 - `db` (función): esa conexión, dentro de una transacción que se deshace al acabar
   cada test. Lo que inserta un test no lo ve el siguiente, sin vaciar tablas. Un
-  test que haga `commit()` rompería esto: ninguno debe hacerlo.
+  `with db.transaction()` dentro del test (el de `epf_spain.ingest.load_file`, por
+  ejemplo) es un *savepoint*: no confirma nada. `db.commit()` y `db.rollback()`
+  fallan dentro de la transacción del test: ningún test debe llamarlos.
 - `load_esios`, `load_omie` y `load_omie_dst` (función): cargan los ficheros de
   `tests/fixtures/` en `observation`, dentro de la transacción del test.
+- `committed_db_url` (función): para lo que abre su propia conexión y confirma,
+  como el comando `epf-ingest`. La misma base; al acabar, vacía `observation`.
 
 Hace falta Docker en marcha. La primera vez baja la imagen `postgres:18`.
 """
 
-import gzip
-import json
 import subprocess
 import time
 from collections.abc import Callable, Iterator
-from decimal import Decimal
 from pathlib import Path
 
 import psycopg
 import pytest
 
+from epf_spain.ingest import load_file
+
 ROOT = Path(__file__).parent.parent
 MIGRATIONS = sorted((ROOT / "migrations").glob("*.sql"))
 FIXTURES = Path(__file__).parent / "fixtures"
 IMAGE = "postgres:18"  # la del compose.yaml
-# indicador de ESIOS -> indicator.id (migrations/0002_reference_data.sql)
-ESIOS_INDICATOR = {1775: 1, 1777: 2, 1779: 3, 600: 4}
 
 
 def docker(*args: str, stdin: bytes | None = None) -> str:
@@ -106,38 +107,43 @@ def connection(postgres_url: str) -> Iterator[psycopg.Connection]:
 
 @pytest.fixture
 def db(connection: psycopg.Connection) -> Iterator[psycopg.Connection]:
-    # psycopg abre la transacción con la primera consulta del test
-    yield connection
+    # Abierta aquí y no con la primera consulta del test: si lo primero fuera un
+    # `with transaction()`, psycopg lo tomaría por la transacción de fuera y la
+    # confirmaría al salir
+    with connection.transaction(force_rollback=True):
+        yield connection
+
+
+@pytest.fixture
+def committed_db_url(
+    postgres_url: str, connection: psycopg.Connection
+) -> Iterator[str]:
+    def count() -> int:
+        return connection.execute("SELECT count(*) FROM observation").fetchone()[0]
+
+    # ninguna migración carga observation, y los demás tests no confirman nada
+    assert count() == 0
     connection.rollback()
+    try:
+        yield postgres_url
+    finally:
+        connection.rollback()
+        connection.execute("DELETE FROM observation")
+        connection.commit()
 
 
 @pytest.fixture
 def load_esios(db: psycopg.Connection) -> Callable[[str, str], int]:
     """Fábrica: `load_esios("eolica_prevista", "2026-10-25")` carga ese fichero.
 
-    Como `luz/cargar_local.py`: `period_start` es el `datetime_utc` de ESIOS,
-    `published_at` la hora a la que lo archivó el bot, y los valores, en `Decimal`.
-    Devuelve cuántas filas ha cargado.
+    Con la misma función que el comando `epf-ingest` (`epf_spain.ingest.load_file`):
+    `period_start` es el `datetime_utc` de ESIOS, `published_at` la hora a la que lo
+    archivó el bot, y los valores, en `Decimal`. Devuelve cuántas filas eran nuevas.
     """
 
     def load(series: str, day: str) -> int:
-        path = FIXTURES / "esios" / series / f"{day}.json.gz"
-        with gzip.open(path, "rt", encoding="utf-8") as f:
-            data = json.load(f, parse_float=Decimal)
-        indicator = ESIOS_INDICATOR[data["indicador"]]
-        published = data["publicado_en"]
-        rows = [
-            (indicator, v["datetime_utc"], published, v["value"])
-            for v in data["valores"]
-        ]
-        with db.cursor() as cur:
-            cur.executemany(
-                "INSERT INTO observation"
-                " (indicator_id, period_start, published_at, value)"
-                " VALUES (%s, %s, %s, %s)",
-                rows,
-            )
-        return len(rows)
+        new, _ = load_file(db, FIXTURES / "esios" / series / f"{day}.json.gz")
+        return new
 
     return load
 

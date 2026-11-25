@@ -274,3 +274,43 @@ del tope de 5 minutos.
 - La descarga de la imagen y la instalación alargan el trabajo. Con el
   tope de 5 minutos, si un día pasa de ahí sin estar colgado, se sube el
   tope, no se quita.
+
+## 25/11/2026 · lo archivado de ESIOS, en Neon (`epf-ingest`, PR #14)
+
+**Qué se hizo.** `epf-ingest ..\archivador_luz\datos`, con el código del
+PR #14, en la rama `production` de Neon por la cadena directa, después de
+`git pull` en el archivador (último commit, `e82d17c`, el de las 10:10
+UTC del 25/11). Se cargó la carpeta entera, no solo desde el 11/11: en
+Neon no había nada de ESIOS. **190 ficheros, 8.095 filas nuevas, ninguno
+con error**; otra vez, 0 nuevas (26 s, una transacción por fichero). Luego
+`comprobar_carga_neon.sql`, que hace el `ANALYZE observation`:
+
+- Previsiones de demanda, eólica y solar: 1.129 filas cada una, del 11/10
+  al 26/11, de 47 descargas. Precio cuartohorario: 4.708 filas, del 8/10
+  al 25/11, de 49.
+- `spot_price_day`, del 11/11 al 24/11: 14 días de 14 completos. Los 7
+  incompletos del 18/11 (del 11 al 17) ya no lo son.
+- Incompletos antes de hoy en todo el histórico: 0.
+
+`/health`, 200 (12 s: el servicio estaba dormido).
+
+**Qué se rompió.** Nada.
+
+**Dónde corre cada día.** Hasta hoy, en ningún sitio: el Web Service
+gratuito de Render solo sirve peticiones. Un paso más en el workflow del
+archivador, `Cargar en Neon`, después de guardar en el repo: instala el
+paquete desde `main` y pasa a `epf-ingest` los ficheros de los últimos
+días (por el nombre, que es la fecha). Desde aquí, 19 ficheros en 3 s.
+La cadena, en el secret `NEON_DATABASE_URL` del archivador.
+
+**Lo que podía haberse roto:**
+
+- Si Neon no responde, el paso sale en rojo, pero lo archivado ya está en
+  el repo: la ejecución siguiente vuelve a pasar los ficheros de esos días
+  y no duplica nada. Si pasan más de tres días, se relanza a mano sobre la
+  carpeta entera.
+- El paso instala lo que haya en `main`: un cambio que rompa `epf-ingest`
+  se nota en el archivador, no en el despliegue. Los reintentos y la
+  completitud del día son de la S9.
+- Las ejecuciones del archivador ganan unos segundos (instalar el paquete
+  y conectar): revisar a final de mes el gasto de Actions.

@@ -10,17 +10,22 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 authors = [{ name = "Iván Calvo Rodríguez" }]
-dependencies = ["fastapi==0.158.0", "uvicorn==0.54.0"]
+dependencies = [
+    "fastapi==0.158.0",
+    "uvicorn==0.54.0",
+    # epf-ingest escribe en Postgres
+    "psycopg[binary]==3.3.9",
+]
 
 [project.scripts]
 epf-web = "epf_spain.web:main"
+epf-ingest = "epf_spain.ingest:main"
 
 [project.optional-dependencies]
 dev = [
     "ruff==0.17.0",
     "pre-commit==4.7.0",
     "pytest==9.2.0",
-    "psycopg[binary]==3.3.9",
     # zoneinfo necesita la base de zonas, y el Python de Windows no la trae
     "tzdata==2026.6",
 ]
